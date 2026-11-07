@@ -10,7 +10,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
@@ -29,22 +28,12 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Check AWS Role Variable
-        env:
-          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
-        run: |
-          if [ -z "$AWS_ROLE_ARN" ]; then
-            echo "::error::AWS_ROLE_ARN variable is empty"
-            exit 1
-          fi
-          echo "AWS_ROLE_ARN variable is configured"
-
-      - name: Configure AWS Credentials using OIDC
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::699975678994:role/GitHubActions-Terraform-Role
-          aws-region: us-east-1
-          audience: sts.amazonaws.com
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Verify AWS Identity
         run: aws sts get-caller-identity
