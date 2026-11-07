@@ -1,52 +1,59 @@
-name: GitHub AWS OIDC 
+name: Terraform AWS CI/CD
+
 on:
   push:
-    branches: [aws-oidc-test]
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   id-token: write
-  contents: read    
-    
+  contents: read
+
 jobs:
-  oidc-test:
-    runs-on: [ubuntu-latest]
+  terraform:
+    name: Terraform Pipeline
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: terraform
+
+    env:
+      AWS_REGION: us-east-1
+
     steps:
-      - name: Checkout Source
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-          audience: sts.amazonaws.com
-          output-env-credentials: true
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: terraform-github-actions
 
-      - name: Test AWS Credentials
+      - name: Verify AWS Identity
         run: aws sts get-caller-identity
 
-        # Step 4: Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      # Step 5: Terraform Format Check
       - name: Terraform Format Check
         run: terraform fmt -check -recursive
 
-      # Step 6: Terraform Init
       - name: Terraform Init
         run: terraform init -input=false
 
-      # Step 7: Terraform Validate
       - name: Terraform Validate
         run: terraform validate
 
-      # Step 8: Terraform Plan (Runs on both PRs and Pushes)
       - name: Terraform Plan
         run: terraform plan -input=false -out=tfplan
 
-        # Step 9: Terraform Apply (Runs ONLY on merge to main or manual trigger)
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         run: terraform apply -input=false -auto-approve tfplan
