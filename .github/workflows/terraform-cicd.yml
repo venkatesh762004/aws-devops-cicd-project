@@ -51,8 +51,13 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      
       - name: Terraform Plan
         run: terraform plan -input=false -out=tfplan
+        env:
+          TF_VAR_ssh_allowed_cidr: ${{ vars.TF_VAR_ssh_allowed_cidr }}
+          TF_VAR_ssh_public_key: ${{ vars.TF_VAR_ssh_public_key }}
+
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
