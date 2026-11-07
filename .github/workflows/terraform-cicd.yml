@@ -1,15 +1,12 @@
-
 name: Terraform AWS CI/CD
 
 on:
   push:
     branches:
       - main
-
   pull_request:
     branches:
       - main
-
   workflow_dispatch:
 
 permissions:
@@ -18,7 +15,7 @@ permissions:
 
 jobs:
   terraform:
-    name: Terraform Deployment
+    name: Terraform Pipeline
     runs-on: ubuntu-latest
 
     defaults:
@@ -29,57 +26,45 @@ jobs:
       AWS_REGION: us-east-1
 
     steps:
-
-      # Step 1: Checkout Repository
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Step 2: Check AWS Role ARN
       - name: Check AWS Role Variable
         env:
           AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
         run: |
           if [ -z "$AWS_ROLE_ARN" ]; then
-            echo "ERROR: AWS_ROLE_ARN variable is empty"
+            echo "::error::AWS_ROLE_ARN variable is empty"
             exit 1
           fi
-
           echo "AWS_ROLE_ARN variable is configured"
 
-      # Step 3: Configure AWS Credentials using OIDC
       - name: Configure AWS Credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-          audience: sts.amazonaws.com
+          aws-region: ${{ env.AWS_REGION }}
 
-      # Step 4: Verify AWS Identity
       - name: Verify AWS Identity
         run: aws sts get-caller-identity
 
-      # Step 5: Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      # Step 6: Terraform Init
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
       - name: Terraform Init
         run: terraform init -input=false
 
-      # Step 7: Terraform Format
-      - name: Terraform Format
-        run: terraform fmt -check -recursive
-
-      # Step 8: Terraform Validate
       - name: Terraform Validate
         run: terraform validate
 
-      # Step 9: Terraform Plan
+      # Plan runs on BOTH pull requests and pushes
       - name: Terraform Plan
-        if: github.event_name != 'pull_request'
         run: terraform plan -input=false -out=tfplan
 
-      # Step 10: Terraform Apply
+      # Apply runs ONLY on merges to main or manual dispatch
       - name: Terraform Apply
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         run: terraform apply -input=false -auto-approve tfplan
