@@ -1,0 +1,67 @@
+name: Terraform AWS CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform Pipeline
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: terraform
+
+    env:
+      AWS_REGION: us-east-1
+
+    steps:
+      # Step 1: Checkout Repository
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Step 2: Configure AWS Credentials using Access Keys
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Step 3: Verify AWS Identity
+      - name: Verify AWS Identity
+        run: aws sts get-caller-identity
+
+      # Step 4: Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # Step 5: Terraform Format Check
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      # Step 6: Terraform Init
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      # Step 7: Terraform Validate
+      - name: Terraform Validate
+        run: terraform validate
+
+      # Step 8: Terraform Plan (Runs on both PRs and Pushes)
+      - name: Terraform Plan
+        run: terraform plan -input=false -out=tfplan
+
+      # Step 9: Terraform Apply (Runs ONLY on merge to main or manual trigger)
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: terraform apply -input=false -auto-approve tfplan
