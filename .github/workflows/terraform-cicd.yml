@@ -1,65 +1,61 @@
-
-name: AWS Terraform CI-CD Pipeline
+```yaml
+name: Terraform AWS CI/CD
 
 on:
   push:
     branches:
       - main
-
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
-concurrency:
-  group: terraform-aws-deployment
-  cancel-in-progress: false
-
-env:
-  AWS_REGION: ${{ vars.AWS_REGION }}
-  TF_VAR_ssh_allowed_cidr: ${{ vars.TF_VAR_ssh_allowed_cidr }}
-  TF_VAR_ssh_public_key: ${{ vars.TF_VAR_ssh_public_key }}
-
 jobs:
-  terraform-deployment:
-    name: Terraform Infrastructure Deployment
+  terraform:
+    name: Terraform Deployment
     runs-on: ubuntu-latest
 
     defaults:
       run:
         working-directory: terraform
 
+    env:
+      AWS_REGION: us-east-1
+
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.10.0"
-
-      - name: Terraform Format
-        run: terraform fmt -check -recursive
-
-      - name: Terraform Initialize
-        run: terraform init -input=false
-
-      - name: Terraform Validate
-        run: terraform validate
+        uses: actions/checkout@v4
 
       - name: Configure AWS Credentials using OIDC
-        uses: aws-actions/configure-aws-credentials@v6.3.0
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
-          role-session-name: GitHubActionsTerraformSession
 
       - name: Verify AWS Identity
         run: aws sts get-caller-identity
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Format
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        run: terraform validate
+
       - name: Terraform Plan
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: terraform plan -input=false -out=tfplan
 
       - name: Terraform Apply
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: terraform apply -input=false -auto-approve tfplan
+```
